@@ -208,12 +208,15 @@ func validateAgentFunction(obj *ObjectTypeDef, fn *Function) error {
 	return nil
 }
 
-// functionRequiresArgsExceptAgentBase reports whether a function has required
-// arguments, except that for an @agent function it exempts a single required
-// LLM! argument — the base the compose fold supplies explicitly
-// (hack/designs/workspace-agents.md §3). Any *other* required argument still
-// disqualifies the function from no-arg enumeration.
-func functionRequiresArgsExceptAgentBase(fn *Function) bool {
+// functionRequiresCallerArgs reports whether a function has required arguments
+// the caller has to supply, which disqualifies it from no-arg enumeration.
+//
+// Engine-supplied arguments don't count, because nothing is asked of the
+// caller: for an @agent function, a single required LLM! — the base the compose
+// fold supplies explicitly (hack/designs/workspace-agents.md §3) — and a
+// Workspace!, which resolves from the workspace in scope. Both are declared
+// required so the signature says so, and both are filled in before the call.
+func functionRequiresCallerArgs(fn *Function) bool {
 	baseExempted := false
 	for _, argRes := range fn.Args {
 		arg := argRes.Self()
@@ -222,6 +225,9 @@ func functionRequiresArgsExceptAgentBase(fn *Function) bool {
 		}
 		if fn.IsAgent && !baseExempted && isCoreLLMArg(arg) {
 			baseExempted = true
+			continue
+		}
+		if arg.IsWorkspace() {
 			continue
 		}
 		return true
